@@ -104,7 +104,7 @@
         const config = { fps: 10, qrbox: 250 };
 
         html5QrCode.start(
-          { facingMode: "environment" },
+          { facingMode: "user" }, // Включаем ФРОНТАЛЬНУЮ камеру
           config,
           onScanSuccess,
           onScanFailure
@@ -117,3 +117,4 @@
     </script>
   </body>
 </html>
+
