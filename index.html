@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>QR Kiosk</title>
+
+    <!-- Подключаем библиотеку html5-qrcode -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
+
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+      }
+      h1 { margin-top: 20px; }
+
+      #reader {
+        width: 100%;
+        max-width: 400px;
+        margin: 20px auto;
+      }
+      #status {
+        font-weight: bold;
+        margin: 20px;
+        font-size: 1.2em;
+      }
+
+      /* При "мигании" перекрашиваем фон */
+      .flash-ok {
+        background-color: #91f48f !important; /* светло-зелёный */
+        transition: background-color 0.5s;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Поднесите бейджик к камере</h1>
+
+    <!-- Блок для камеры и сканирования -->
+    <div id="reader"></div>
+    <!-- Блок статуса -->
+    <div id="status">Сканирование…</div>
+
+    <script>
+      // Переменная, чтобы не сканировать один и тот же QR бесконечно
+      let lastScanned = null;
+
+      function onScanSuccess(qrMessage) {
+        // Если QR лежит в кадре долго, библиотека может звать эту функцию много раз
+        if (qrMessage === lastScanned) {
+          return; // игнорируем повтор
+        }
+        lastScanned = qrMessage;
+        // Через 2 секунды снова можно считать тот же код
+        setTimeout(() => { lastScanned = null; }, 2000);
+
+        // qrMessage – ПОЛНЫЙ URL из QR
+        document.getElementById("status").innerText = "Считан QR:\n" + qrMessage;
+
+        // Делаем запрос по этому URL
+        fetch(qrMessage)
+          .then(response => response.text())
+          .then(text => {
+            document.getElementById("status").innerText = text;
+            flashScreen(); // мигаем экраном
+            setTimeout(() => {
+              document.getElementById("status").innerText = "Сканирование…";
+            }, 2000);
+          })
+          .catch(err => {
+            document.getElementById("status").innerText = "Ошибка: " + err;
+            flashScreenError();
+            setTimeout(() => {
+              document.getElementById("status").innerText = "Сканирование…";
+            }, 2000);
+          });
+      }
+
+      function onScanFailure(error) {
+        // Ничего особого, если QR не найден
+      }
+
+      // Мигание зелёным
+      function flashScreen() {
+        document.body.classList.add("flash-ok");
+        setTimeout(() => {
+          document.body.classList.remove("flash-ok");
+        }, 1000);
+      }
+
+      // Мигание красным при ошибке (пример)
+      function flashScreenError() {
+        const originalColor = document.body.style.backgroundColor;
+        document.body.style.backgroundColor = "#f8a4a4";
+        setTimeout(() => {
+          document.body.style.backgroundColor = originalColor;
+        }, 1000);
+      }
+
+      // Стартуем при загрузке
+      function startScanner() {
+        const html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: 250 };
+
+        html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess,
+          onScanFailure
+        ).catch(err => {
+          document.getElementById("status").innerText = "Ошибка запуска камеры: " + err;
+        });
+      }
+
+      window.addEventListener("load", startScanner);
+    </script>
+  </body>
+</html>
