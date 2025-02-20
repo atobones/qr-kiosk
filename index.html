@@ -25,6 +25,7 @@
         font-weight: bold;
         margin: 20px;
         font-size: 1.2em;
+        white-space: pre-wrap; /* Чтобы переносились строки, если длинное сообщение */
       }
 
       /* При "мигании" перекрашиваем фон */
@@ -43,42 +44,50 @@
     <div id="status">Сканирование…</div>
 
     <script>
-      // Переменная, чтобы не сканировать один и тот же QR бесконечно
+      // Чтобы не сканировать один и тот же QR бесконечно:
       let lastScanned = null;
 
+      // Вызывается при успешном обнаружении QR
       function onScanSuccess(qrMessage) {
-        // Если QR лежит в кадре долго, библиотека может звать эту функцию много раз
+        // Если QR остаётся в кадре, библиотека может звать этот колбэк много раз
         if (qrMessage === lastScanned) {
-          return; // игнорируем повтор
+          return; // игнорируем повторные вызовы
         }
         lastScanned = qrMessage;
         // Через 2 секунды снова можно считать тот же код
         setTimeout(() => { lastScanned = null; }, 2000);
 
-        // qrMessage – ПОЛНЫЙ URL из QR
+        // qrMessage – ПОЛНЫЙ URL, считанный из QR
         document.getElementById("status").innerText = "Считан QR:\n" + qrMessage;
 
-        // Делаем запрос по этому URL
-        fetch(qrMessage)
-          .then(response => response.text())
+        // Делаем запрос fetch к этому URL
+        fetch(qrMessage, { method: "GET", mode: "cors" })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+            }
+            return response.text();
+          })
           .then(text => {
             document.getElementById("status").innerText = text;
-            flashScreen(); // мигаем экраном
+            flashScreen(); // мигаем экраном (зелёный)
             setTimeout(() => {
               document.getElementById("status").innerText = "Сканирование…";
             }, 2000);
           })
           .catch(err => {
-            document.getElementById("status").innerText = "Ошибка: " + err;
-            flashScreenError();
+            // Здесь выводим ошибку
+            document.getElementById("status").innerText = "Ошибка запроса: " + err;
+            flashScreenError(); // мигаем красным
             setTimeout(() => {
               document.getElementById("status").innerText = "Сканирование…";
             }, 2000);
           });
       }
 
+      // Вызывается, если QR не найден в кадре (можно игнорировать)
       function onScanFailure(error) {
-        // Ничего особого, если QR не найден
+        // console.log("Scan failed", error);
       }
 
       // Мигание зелёным
@@ -89,7 +98,7 @@
         }, 1000);
       }
 
-      // Мигание красным при ошибке (пример)
+      // Мигание красным при ошибке
       function flashScreenError() {
         const originalColor = document.body.style.backgroundColor;
         document.body.style.backgroundColor = "#f8a4a4";
@@ -98,13 +107,14 @@
         }, 1000);
       }
 
-      // Стартуем при загрузке
+      // Запускаем сканер камеры при загрузке страницы
       function startScanner() {
         const html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 10, qrbox: 250 };
 
+        // 'user' = фронтальная камера, 'environment' = основная
         html5QrCode.start(
-          { facingMode: "user" }, // Включаем ФРОНТАЛЬНУЮ камеру
+          { facingMode: "user" },
           config,
           onScanSuccess,
           onScanFailure
